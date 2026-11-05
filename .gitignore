@@ -1,0 +1,60 @@
+# ============================================================
+# 视频数据网关 · Git 忽略清单
+# 原则：只提交"人和源码"，不提交"机器和产物"
+# 被忽略的运行时依赖可用 scripts/fetch-deps.mjs 一条命令重新拉取
+# ============================================================
+
+# ---- 本地运行时（体积大：tools 约 1.6 GB）----
+# ZLMediaKit / ffmpeg / Maven / MySQL 免安装版，一律不入库
+tools/
+.m2repo/
+
+# ---- 构建产物 ----
+backend/target/
+target/
+*.jar
+*.war
+*.class
+*.original
+
+# ---- 运行期产物：日志 / 录像 / 截图 ----
+# 录像 mp4 动辄几十 MB，且属于业务数据，不能进代码仓库
+logs/
+*.log
+backend/logs/
+
+# ---- 参考源码与离线包（19 MB 的 WVP-PRO 源码包）----
+*.zip
+*.tgz
+*.7z
+*.rar
+
+# ---- IDE / 编辑器 ----
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.project
+.classpath
+*.swp
+*~
+
+# ---- 操作系统 ----
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# ---- 本地私有配置（口令等，禁止入库）----
+.env
+.env.local
+*local*.yml
+application-local.yml
+application-local.properties
+
+# ---- 临时文件 ----
+tmp/
+temp/
+*.tmp
+*.bak

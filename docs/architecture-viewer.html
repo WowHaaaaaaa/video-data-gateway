@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<title>视频数据网关 · 系统架构图</title>
+<style>
+  body{font-family:"Microsoft YaHei",system-ui,sans-serif;margin:0;padding:28px 36px;background:#fff;color:#1f2329}
+  h1{font-size:22px;margin:0 0 4px} .sub{color:#8a94a6;font-size:13px;margin-bottom:22px}
+  section{margin-bottom:34px;page-break-inside:avoid}
+  h2{font-size:16px;border-left:4px solid #6366f1;padding-left:10px;margin:26px 0 12px}
+  .mermaid{background:#fafbfc;border:1px solid #eceff3;border-radius:8px;padding:16px;overflow-x:auto}
+  .tip{background:#fff7e6;border:1px solid #ffe0a3;border-radius:6px;padding:10px 14px;font-size:13px;color:#8a6100;margin-bottom:18px}
+  @media print{.tip{display:none}body{padding:0}}
+</style></head><body>
+<h1>视频数据网关 · 系统架构图</h1>
+<div class="sub">生成自 docs/13-系统架构图.md ｜ 浏览器直接打开，右键图片可另存为 PNG，或 Ctrl+P 存成 PDF</div>
+<div class="tip">如果图没出来：说明公司网络访问不了 CDN。请改用 <b>VS Code 的 Markdown 预览 + Mermaid 插件</b>，或把代码块粘到 mermaid.live。</div>
+<section>
+<h2>四、架构图（Mermaid，可视化版）</h2>
+<pre class="mermaid">flowchart TB
+    subgraph L1["① 接入层"]
+        IPC["网络摄像头 IPC&lt;br/>RTSP 被动源"]
+        CAM["USB 摄像头 / 编码器 / 手机&lt;br/>RTMP 主动推"]
+        BP["业务平台 ×N&lt;br/>A系统 / 门禁 / 大屏"]
+    end
+
+    subgraph L2["② 媒体层 ZLMediaKit :80/:554/:1935"]
+        ZLM["收流 · 转协议 · 分发&lt;br/>录像切片 MP4 · 拉流代理"]
+    end
+
+    subgraph L3["③ 网关业务层 Spring Boot :8088"]
+        AUTH["ApiKeyInterceptor&lt;br/>api-key 鉴权"]
+        SCOPE["AccessScope&lt;br/>通道级隔离"]
+        CTRL["Controller&lt;br/>REST 接口"]
+        SVC["Service&lt;br/>通道/流/台账/录像/拉流"]
+        HOOK["ZlmHookService&lt;br/>Webhook 翻译层"]
+        RECO["StateReconcileService&lt;br/>30s 定时对账"]
+        ZCLI["ZlmApiClient&lt;br/>ZLM REST 客户端"]
+    end
+
+    subgraph L4["④ 数据层"]
+        DB[("MySQL :3307&lt;br/>9 张表")]
+        WWW[("ZLM www&lt;br/>录像 MP4")]
+    end
+
+    subgraph L5["⑤ 展示层"]
+        UI["Vue3 + Element Plus SPA&lt;br/>概览/设备/通道/实时视频/台账/客户端"]
+    end
+
+    P["播放器 / 浏览器 / VLC"]
+
+    CAM -->|"RTMP 推流"| ZLM
+    ZLM -->|"RTSP 拉流"| IPC
+    ZLM -->|"Webhook 回调"| HOOK
+    ZLM -->|"录像文件"| WWW
+    ZCLI -->|"REST + secret&lt;br/>addStreamProxy / getMediaList"| ZLM
+
+    BP -->|"REST + api-key"| AUTH
+    UI -->|"REST + api-key(X-Request-From: ui)"| AUTH
+    AUTH --> SCOPE --> CTRL --> SVC
+    HOOK --> SVC
+    RECO --> SVC
+    SVC --> ZCLI
+    SVC --> DB
+
+    P -->|"HTTP-FLV / HLS / RTSP 直接取流&lt;br/>不经过网关"| ZLM
+    ZLM --> P</pre>
+</section>
+<section>
+<h2>5.1 状态机（通道 / 设备 / 会话）</h2>
+<pre class="mermaid">stateDiagram-v2
+    [*] --> 离线0
+    离线0 --> 推流中2: on_publish（推流）&lt;br/>on_stream_changed regist=true（拉流）
+    推流中2 --> 离线0: on_stream_changed regist=false
+    推流中2 --> 离线0: 对账发现 ZLM 已无此流（STATE_RECONCILE）
+    note right of 推流中2
+        设备状态是派生值：
+        该设备下任一通道非离线 → 设备在线
+    end note</pre>
+</section>
+<section>
+<h2>5.3 鉴权与隔离链（每个请求都走同一条链）</h2>
+<pre class="mermaid">flowchart LR
+    REQ["请求&lt;br/>api-key + X-Request-From"] --> INT["ApiKeyInterceptor&lt;br/>校验 存在/启用/未过期"]
+    INT --> CTX["ApiKeyContext&lt;br/>ThreadLocal 存当前客户端"]
+    CTX --> S1{"AccessScope&lt;br/>allowed_channels 是否为空?"}
+    S1 -->|"空 = 不限"| OK["放行（控制台/不限客户端）"]
+    S1 -->|"非空 = 受限"| FILTER["列表接口: 加 IN(授权通道)&lt;br/>动作接口: 越权 → 1001 + 台账 2003"]
+    OK --> LEDGER["LedgerService 自动带 clientId&lt;br/>并区分 source=API / MANUAL"]
+    FILTER --> LEDGER</pre>
+</section>
+<section>
+<h2>6.1 时序图</h2>
+<pre class="mermaid">sequenceDiagram
+    autonumber
+    participant D as 设备（ffmpeg/IPC）
+    participant Z as ZLMediaKit
+    participant G as 视频数据网关
+    participant DB as MySQL
+    participant P as 播放器
+
+    D->>Z: RTMP 推流 rtmp://ip:1935/live/usbcam
+    Z->>G: on_publish 回调 {app,stream,ip,tracks}
+    G->>DB: 查通道是否存在且启用
+    alt 未注册 / 已停用
+        G-->>Z: {"code":-1,"msg":"stream not registered"}
+        Z-->>D: 断开连接（ffmpeg 收到 auth failed）
+        G->>DB: 台账 PUBLISH_REJECT
+    else 校验通过
+        G->>DB: 开流会话 + 通道 status=2 + 设备置在线
+        G-->>Z: {"code":0}
+        G->>DB: 台账 PUBLISH_START
+        Z->>Z: 注册流 live/usbcam（自动转 rtsp/hls/ts/fmp4）
+    end
+
+    P->>G: GET /channels/{id}/play-address?protocol=flv（api-key）
+    G->>DB: AccessScope 校验通道授权 + 台账 API_CALL
+    G-->>P: http://ip/live/usbcam.live.flv
+    P->>Z: 拉 HTTP-FLV（边下边播）
+    Z->>G: on_play 回调
+    G->>DB: 台账 PLAY_START
+    Note over P,Z: 视频数据全程不经过网关
+
+    D-XZ: 断开
+    Z->>G: on_stream_changed(regist=false)
+    G->>DB: 会话结算(durationSec, NORMAL)&lt;br/>通道 status=0 + 设备重算
+    G->>DB: 台账 PUBLISH_STOP</pre>
+</section>
+<section>
+<h2>7.2 时序图</h2>
+<pre class="mermaid">sequenceDiagram
+    autonumber
+    participant BP as 业务平台/控制台
+    participant G as 视频数据网关
+    participant Z as ZLMediaKit
+    participant IPC as 网络摄像头
+
+    BP->>G: POST /channels/{id}/pull（api-key）
+    G->>G: 校验：通道启用？有 pullUrl？地址协议白名单？&lt;br/>当前无推流/无拉流？有残留代理先清？
+    G->>Z: addStreamProxy(vhost, app, stream, url, timeout=5s, retry=3)
+    G->>G: 台账 STREAM_PULL_START（命令已下发）
+    G-->>BP: {pulling:true, proxyKey}
+
+    Z->>IPC: RTSP DESCRIBE / SETUP / PLAY
+    IPC-->>Z: H.264 RTP 流
+    Z->>Z: 注册流 live/pull1（originType=4，自动转 5 种协议）
+    Z->>G: on_stream_changed(regist=true)
+    Note over G: 注意：拉流不触发 on_publish！&lt;br/>所以这里要"补开户"
+    G->>G: 查有无进行中会话 → 无则开
+    G->>G: 通道 status=2 + 设备在线 + 台账 PUBLISH_START
+
+    BP->>G: GET /channels/{id}/probe
+    G->>Z: getMediaList + getProxyInfo
+    G-->>BP: online=true, originType=4, proxyRegistered=true
+
+    BP->>G: POST /channels/{id}/unpull
+    G->>Z: delStreamProxy(key)
+    Z->>IPC: TEARDOWN
+    Z->>G: on_stream_changed(regist=false)
+    G->>G: 结算会话 + 通道离线 + 台账 STREAM_PULL_STOP / PUBLISH_STOP</pre>
+</section>
+<section>
+<h2>八、业务平台&quot;看视频&quot;的最小链路（对接方只需这两步）</h2>
+<pre class="mermaid">sequenceDiagram
+    participant BP as 业务平台
+    participant G as 网关
+    participant Z as ZLM
+    BP->>G: GET /streams（我有哪些流可以看）
+    G-->>BP: [{channelId:3, streamKey:"live/usbcam", online:true, ...}]
+    BP->>G: GET /channels/3/play-address?protocol=flv
+    G-->>BP: {url:"http://ip/live/usbcam.live.flv", online:true}
+    BP->>Z: flv.js / VLC 播这个 url
+    Note over BP,Z: 业务平台全程不知道摄像头 IP 和密码</pre>
+</section>
+<section>
+<h2>九、数据模型（9 张表）</h2>
+<pre class="mermaid">erDiagram
+    biz_device ||--o{ biz_channel : "1 设备 N 通道"
+    biz_channel ||--o{ biz_stream_session : "一路流多次会话"
+    biz_channel ||--o{ biz_recording : "一路流多段录像"
+    biz_channel ||--o{ biz_ledger : "台账按通道归档"
+    biz_api_client ||--o{ biz_ledger : "台账记录调用方"
+    biz_webhook_subscriber ||--o{ biz_webhook_push_log : "推送日志"
+
+    biz_device { bigint id PK
+        varchar device_code UK
+        varchar device_name
+        varchar device_type
+        tinyint status "1在线 0离线(派生)"
+        tinyint enabled }
+    biz_channel { bigint id PK
+        bigint device_id FK
+        varchar channel_code UK
+        varchar stream_app "live"
+        varchar stream_id "usbcam"
+        varchar pull_url "拉流型才有"
+        tinyint status "0离线 1在线 2推流中" }
+    biz_stream_session { bigint id PK
+        varchar session_no
+        bigint channel_id FK
+        varchar stream_key "live/usbcam 快照"
+        datetime start_time
+        int duration_sec
+        varchar end_reason "NORMAL/TIMEOUT/SERVER_DOWN"
+        tinyint status "1进行中 2正常 3异常" }
+    biz_ledger { bigint id PK
+        varchar biz_no
+        varchar event_type
+        datetime event_time
+        bigint channel_id FK
+        varchar channel_code "事发快照"
+        varchar stream_key "事发快照"
+        bigint client_id FK "谁调的"
+        varchar source "ZLM/API/MANUAL/TIMER"
+        int result_code
+        text detail }
+    biz_recording { bigint id PK
+        bigint channel_id FK
+        varchar file_path
+        bigint file_size
+        int duration_sec
+        tinyint file_exists "1在 0已清理"
+        datetime purged_time }
+    biz_api_client { bigint id PK
+        varchar app_key UK
+        varchar app_secret
+        varchar allowed_channels "逗号分隔,空=不限"
+        datetime expire_time
+        tinyint enabled }</pre>
+</section>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+mermaid.initialize({ startOnLoad: true, theme: 'default', securityLevel: 'loose', flowchart: { htmlLabels: true, curve: 'basis' }, sequence: { showSequenceNumbers: true } });
+</script>
+</body></html>

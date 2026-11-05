@@ -1,0 +1,193 @@
+/* ---------- 全局布局 ---------- */
+html, body, #app { height: 100%; margin: 0; }
+body {
+    font-family: "Microsoft YaHei", -apple-system, "Segoe UI", sans-serif;
+    background: #f5f7fa;
+    color: #303133;
+}
+.layout { height: 100%; }
+
+/* ---------- 侧边栏 ---------- */
+.aside {
+    background: #1f2d3d;
+    border-right: 1px solid #16222e;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 18px 16px 14px;
+    border-bottom: 1px solid #2b3a4d;
+}
+.brand .dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #4ade80;
+    box-shadow: 0 0 8px #4ade80;
+    flex: none;
+}
+.brand-title { color: #fff; font-size: 15px; font-weight: 600; letter-spacing: .5px; }
+.brand-sub { color: #6b7a8f; font-size: 11px; margin-top: 2px; }
+
+.menu { border-right: none; background: transparent; flex: 1; overflow-y: auto; }
+.menu .el-menu-item,
+.menu .el-sub-menu__title {
+    color: #b6c2cf;
+    height: 44px;
+    line-height: 44px;
+}
+.menu .el-menu-item:hover,
+.menu .el-sub-menu__title:hover { background: #263649; color: #fff; }
+.menu .el-menu-item.is-active {
+    background: #2f6fed !important;
+    color: #fff !important;
+}
+.menu .el-sub-menu .el-menu-item { background: #1a2634; }
+.menu .el-sub-menu .el-menu-item.is-active { background: #2f6fed !important; }
+
+/* ---------- 顶栏 ---------- */
+.header {
+    background: #fff;
+    border-bottom: 1px solid #e4e7ed;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 56px;
+}
+.header-left { font-size: 16px; font-weight: 600; }
+.header-right { display: flex; align-items: center; gap: 12px; }
+.apikey {
+    font-size: 12px;
+    color: #909399;
+    background: #f4f4f5;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-family: Consolas, monospace;
+}
+
+/* ---------- 内容区 ---------- */
+.main { padding: 18px; background: #f5f7fa; overflow-y: auto; }
+
+.page-card { background: #fff; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+.page-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 14px;
+}
+.page-head h3 { margin: 0; font-size: 15px; font-weight: 600; }
+.page-head .sub { font-size: 12px; color: #909399; margin-top: 4px; }
+
+/* ---------- 统计卡片 ---------- */
+.stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 16px; }
+.stat {
+    background: #fff; border-radius: 8px; padding: 18px;
+    border-left: 3px solid #2f6fed;
+}
+.stat .label { font-size: 12px; color: #909399; }
+.stat .value { font-size: 28px; font-weight: 700; margin-top: 6px; color: #303133; line-height: 1; }
+.stat .unit { font-size: 12px; color: #c0c4cc; margin-left: 4px; }
+.stat.green { border-left-color: #4ade80; }
+.stat.orange { border-left-color: #f59e0b; }
+.stat.red { border-left-color: #ef4444; }
+
+/* ---------- 在线流卡片墙 ---------- */
+.stream-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 14px;
+}
+.stream-card {
+    background: #fff; border-radius: 8px; padding: 14px;
+    border: 1px solid #ebeef5;
+    cursor: pointer;
+    transition: box-shadow .15s, transform .15s;
+}
+.stream-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.08); transform: translateY(-2px); }
+.stream-card .name { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.stream-card .key { font-family: Consolas, monospace; font-size: 12px; color: #909399; margin: 8px 0; }
+.stream-card .meta { font-size: 12px; color: #909399; }
+.online-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: #4ade80; flex: none;
+    box-shadow: 0 0 6px #4ade80;
+}
+
+/* ---------- 播放弹窗 ---------- */
+.player-box { background: #000; border-radius: 6px; overflow: hidden; aspect-ratio: 16/9; }
+.player-box video { width: 100%; height: 100%; display: block; }
+
+/* ---------- 台账详情 ---------- */
+.json-cell {
+    font-family: Consolas, monospace;
+    font-size: 11px;
+    color: #606266;
+    max-width: 420px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 90px;
+    overflow-y: auto;
+    background: #fafafa;
+    padding: 6px;
+    border-radius: 4px;
+}
+
+/* ---------- 筛选行 ---------- */
+.filter-row {
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+    margin-bottom: 14px;
+}
+
+/* ---------- 空状态 ---------- */
+.empty { text-align: center; color: #909399; font-size: 13px; padding: 40px 0; }
+
+/* ---------- 密钥展示 ---------- */
+.secret-box {
+    background: #f8f9fb; border: 1px dashed #dcdfe6; border-radius: 6px;
+    padding: 12px; font-family: Consolas, monospace; font-size: 13px;
+    word-break: break-all; margin-bottom: 10px;
+}
+.secret-warn { color: #ef4444; font-size: 12px; font-weight: 600; }
+
+/* ---------- 分页 ---------- */
+.pager { margin-top: 14px; display: flex; justify-content: flex-end; }
+
+/* ---------- 表单提示 ---------- */
+.form-tip {
+    font-size: 11px;
+    color: #909399;
+    line-height: 1.6;
+    margin-top: 4px;
+}
+
+/* ---------- 代码块 ---------- */
+code {
+    background: #f4f4f5;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: Consolas, monospace;
+    font-size: 12px;
+    color: #c7254e;
+}
+
+/* ---------- 接口文档内嵌框 ---------- */
+.doc-frame {
+    width: 100%;
+    height: calc(100vh - 260px);
+    min-height: 480px;
+    border: 1px solid #e4e7ed;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #fff;
+}
+.doc-frame iframe { width: 100%; height: 100%; border: 0; display: block; }
+
+/* ---------- 录像控制行 ---------- */
+.rec-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed #ebeef5;
+}

@@ -1,0 +1,95 @@
+server:
+  port: 8088
+  servlet:
+    encoding:
+      charset: UTF-8
+      force: true
+
+spring:
+  application:
+    name: video-data-gateway
+  web:
+    resources:
+      # 前端静态文件在项目根的 frontend/ 目录（与后端完全分离），外部路径优先。
+      # 好处：改 HTML/JS 后刷新浏览器即生效，不用重新编译 jar。
+      #
+      # 兜底说明：第一个是"工作目录=项目根"时命中（推荐）；
+      #           第二个是"工作目录=backend"时命中（例如 IDEA 默认配置、mvn spring-boot:run）；
+      #           两者都不命中时退回到打进的 jar 里（classpath:/static/）。
+      static-locations: file:./frontend/,file:../frontend/,classpath:/static/
+      # 开发/演示期禁用静态资源缓存：改完 HTML/JS 刷新即生效，
+      # 避免浏览器拿着旧 app.js 导致"明明改了却没变化"
+      cache:
+        cachecontrol:
+          no-store: true
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    # 端口用 3307：本机 3306 被公司预装的 MySQL267 服务占用，避免冲突
+    url: jdbc:mysql://127.0.0.1:3307/video_gateway?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+    # 口令走环境变量，仓库里不留明文；不设置环境变量时用下面的默认值（本地开发用）
+    username: ${VGW_DB_USER:root}
+    password: ${VGW_DB_PASSWORD:123456}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+  jackson:
+    time-zone: Asia/Shanghai
+    date-format: yyyy-MM-dd HH:mm:ss
+    # 不序列化 null 字段。两个理由：
+    # 1) OpenAPI 3.0 里一个属性若没声明 nullable:true，null 值就算"与接口定义不一致"，
+    #    Apifox / Postman 的响应校验会报 "$.data.pullUrl 不允许为 null" 这种红字；
+    #    而字段直接不出现是完全合法的（该属性本来就不是 required）。
+    # 2) 响应体积更小，前端本来也是按 falsy 判断（没值 == 没配）。
+    default-property-inclusion: non_null
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    banner: false
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+# 业务配置
+vgw:
+  zlm:
+    # ZLMediaKit 的 HTTP/API 端口
+    base-url: http://127.0.0.1
+    # ZLMediaKit config.ini 里 [api] secret 的值
+    # 注意：ZLM 2024+ 会校验该值，只接受 32 位字母数字串；
+    #      格式非法会在启动时随机生成并回写 config.ini，导致网关调用报 -100 Incorrect secret
+    # 同理走环境变量 VGW_ZLM_SECRET。注意：这个默认值对应开发机的 config.ini，
+    # 别人克隆后首次运行 ZLM 会生成自己的 secret，必须改成自己的（或设环境变量）
+    secret: ${VGW_ZLM_SECRET:a8Fk3QzR7mWp2TvN6xLc9Yb4Hs1Jd5Eg}
+    # 网关自己的地址，ZLM 会把 webhook 回调到这里
+    hook-base-url: http://127.0.0.1:8088
+    # 默认应用名（推流地址 rtmp://ip/live/{streamId}）
+    default-app: live
+    # ZLM 的 www 根目录（录像文件在这里），用于清理录像时映射磁盘路径
+    www-dir: ./tools/zlm/www
+  security:
+    # 对外 REST API 的客户端鉴权开关（请求头 api-key）
+    # 关闭时所有 /api/v1/** 无需凭证，仅用于本地调试，演示时保持 true
+    enabled: true
+  play:
+    # 播放地址签名有效期（秒）
+    token-ttl-seconds: 600
+  ledger:
+    # 会话兜底扫描：超过该秒数没有心跳的"进行中"会话判定为异常断流
+    stale-session-seconds: 120
+
+logging:
+  level:
+    root: info
+    com.lining.vgw: debug
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %-5level [%X{traceId:-}] %logger{36} - %msg%n"
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+knife4j:
+  enable: true

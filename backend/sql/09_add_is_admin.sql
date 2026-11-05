@@ -1,0 +1,13 @@
+-- 09: 区分「管理权限（超管）」与「通道范围」
+-- 之前把两件事混在 scope_mode 里：ALL 既表示"能看全部通道"，又隐含"能调管理接口"。
+-- 但实际上"能看全部通道"不等于"能查别人的 appKey / 看全平台统计"。
+-- 所以拆成两个维度：
+--   scope_mode  : ALL / SCOPE —— 只看"通道可见范围"
+--   is_admin    : 0 / 1      —— 是否拥有管理权限（可调 /api-clients、/stats 等全部接口）
+ALTER TABLE biz_api_client
+  ADD COLUMN is_admin TINYINT NOT NULL DEFAULT 0
+  COMMENT '1=管理权限（超管），可调用全部接口（含客户端管理/统计）；与通道范围无关'
+  AFTER scope_mode;
+
+-- 内置控制台凭证必须有管理权限，否则界面自己都管不了
+UPDATE biz_api_client SET is_admin = 1 WHERE app_key = 'vwg_console';

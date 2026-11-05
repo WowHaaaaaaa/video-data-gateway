@@ -61,7 +61,7 @@
 │   ├── mysql/                       MySQL 8.0 免安装
 │   └── maven-conf/settings.xml      阿里云镜像
 ├── scripts/                         构建、启动、推流、检测、依赖拉取脚本
-└── docs/                            设计与过程文档（01~15）
+└── docs/                            设计与过程文档（01~16）
 ```
 
 > **为什么 tools/ 不在仓库里**：ZLMediaKit / MySQL / Maven / ffmpeg 加起来约 1.6 GB，
@@ -146,4 +146,6 @@ scripts\push-test.bat cam01
 > WVP-PRO 的能力比对与取舍见 `docs/06-WVP-PRO能力比对与取舍.md`
 
 > 详细验证记录与踩坑见 `docs/03-进度日志.md`
+>
+> Git 用法（提交 / 分支 / PR 协作 / 冲突处理 / 回滚）见 `docs/16-Git版本管理与协作.md`
 

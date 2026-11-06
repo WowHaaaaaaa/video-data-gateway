@@ -2,11 +2,36 @@
 
 ## 新环境（克隆仓库后第一次跑）——只执行一个文件
 
-```bash
-mysql -h127.0.0.1 -P3307 -uroot -p < backend/sql/00_init_all.sql
+### 推荐：一条命令
+
+```bat
+scripts\init-db.bat
 ```
 
-或者用 Navicat：右键连接 → **运行 SQL 文件** → 选中 `00_init_all.sql` → 开始。
+它会自动做这些事：找 `tools\mysql` 里的客户端 → 检查 3307 端口是否在监听 →
+发现库里已有表时要求输入 `yes` 确认 → 执行 → 打印自检结果。
+
+### 方式二：命令行（cmd / Git Bash）
+
+```bat
+mysql -h127.0.0.1 -P3307 -uroot -p --default-character-set=utf8mb4 < backend\sql\00_init_all.sql
+```
+
+> ⚠️ **PowerShell 里不能用 `<` 重定向**（会报 `The '<' operator is reserved for future use`）。
+> 在 PowerShell 里改用下面这种写法：
+>
+> ```powershell
+> mysql -h127.0.0.1 -P3307 -uroot -p --default-character-set=utf8mb4 -e "source backend/sql/00_init_all.sql"
+> ```
+> 或者干脆用 `scripts\init-db.bat`。
+
+### 方式三：Navicat / DataGrip
+
+- Navicat：右键连接 → **运行 SQL 文件** → 选中 `00_init_all.sql` → 开始
+- DataGrip：打开该文件 → 选目标库 → 全选 → 执行
+
+> 注意 `--default-character-set=utf8mb4`（Navicat 里是在连接属性里设编码）：
+> 脚本里含中文注释和中文种子数据，编码不对会变成乱码问号。
 
 它会一次做完这些事：
 

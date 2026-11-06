@@ -1198,10 +1198,12 @@ const Records = {
                     <el-tag v-else size="small" type="success">存在</el-tag>
                 </template>
             </el-table-column>
-            <el-table-column label="操作" width="180">
+            <el-table-column label="操作" width="240">
                 <template #default="sc">
                     <el-button v-if="sc.row.fileExists !== 0 && sc.row.filePath" link type="primary" size="small"
                         @click="openVideo(sc.row.filePath)">回放</el-button>
+                    <el-button v-if="sc.row.fileExists !== 0" link type="success" size="small"
+                        :loading="downloading === sc.row.id" @click="download(sc.row)">下载</el-button>
                     <el-button v-if="sc.row.fileExists !== 0" link type="danger" size="small"
                         :loading="purging === sc.row.id" @click="purge(sc.row)">清理文件</el-button>
                     <span v-if="sc.row.fileExists === 0" style="color:#909399;font-size:12px">
@@ -1247,6 +1249,54 @@ const Records = {
         }
         function openVideo(url) { window.open(url, '_blank'); }
 
+        const downloading = ref(null);
+        /**
+         * 下载录像文件（走网关接口，不是在浏览器里内联播放）。
+         * 为什么不直接 window.open(filePath)：那样是直连 ZLM 的静态目录，
+         * 绕过了 api-key 鉴权和通道级隔离；而且浏览器对 mp4 是内联播放，不是保存。
+         * 这里用 fetch 带鉴权头拿到二进制，再用 <a download> 触发另存为。
+         */
+        async function download(row) {
+            downloading.value = row.id;
+            try {
+                const headers = { 'X-Request-From': 'ui' };
+                const k = getKey();
+                if (k) headers['api-key'] = k;
+                const resp = await fetch('/api/v1/recordings/' + row.id + '/download', { headers });
+                if (resp.status === 401) {
+                    const body = await resp.json().catch(() => null);
+                    const reason = (body && body.msg) ? body.msg : '调用凭证缺失或已失效，请重新输入';
+                    setKey('');
+                    window.dispatchEvent(new CustomEvent('vgw-unauthorized', { detail: reason }));
+                    throw new Error(reason);
+                }
+                if (!resp.ok) {
+                    let msg = '下载失败（HTTP ' + resp.status + '）';
+                    try { const j = await resp.json(); if (j && j.msg) msg = j.msg; } catch (e) {}
+                    throw new Error(msg);
+                }
+                // 文件名优先后端 Content-Disposition 里的（RFC 5987 编码，含中文）
+                let name = row.fileName || ('recording-' + row.id + '.mp4');
+                const cd = resp.headers.get('Content-Disposition') || '';
+                const m = /filename\*=UTF-8''([^;]+)/i.exec(cd);
+                if (m) { try { name = decodeURIComponent(m[1]); } catch (e) {} }
+                const blob = await resp.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = name;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 30000);
+                ElMessage.success('已开始下载：' + name);
+            } catch (e) {
+                ElMessage.error(e.message || '下载失败');
+            } finally {
+                downloading.value = null;
+            }
+        }
+
         const purging = ref(null);
         /** 清理磁盘上的录像文件（台账记录保留） */
         async function purge(row) {
@@ -1269,8 +1319,8 @@ const Records = {
         }
         onMounted(load);
         onMounted(loadChannels);
-        return { rows, total, page, size, loading, purging, q, channels, visibleRows, search, resetQuery,
-            load, openVideo, purge, fmtTime, fmtDur, fmtSize };
+        return { rows, total, page, size, loading, purging, downloading, q, channels, visibleRows, search, resetQuery,
+            load, openVideo, download, purge, fmtTime, fmtDur, fmtSize };
     }
 };
 

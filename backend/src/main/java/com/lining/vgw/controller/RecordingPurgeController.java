@@ -5,7 +5,7 @@ import com.lining.vgw.common.ErrorCode;
 import com.lining.vgw.common.Result;
 import com.lining.vgw.domain.Ledger;
 import com.lining.vgw.domain.Recording;
-import com.lining.vgw.integration.zlm.ZlmProperties;
+import com.lining.vgw.service.RecordingFileService;
 import com.lining.vgw.mapper.RecordingMapper;
 import com.lining.vgw.service.ChannelAccessService;
 import com.lining.vgw.service.ChannelService;
@@ -20,10 +20,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.io.IOException;
-import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -50,7 +48,7 @@ public class RecordingPurgeController {
 
     private final RecordingMapper recordingMapper;
     private final LedgerService ledgerService;
-    private final ZlmProperties zlmProperties;
+    private final RecordingFileService recordingFileService;
     private final ChannelService channelService;
     private final ChannelAccessService channelAccessService;
 
@@ -73,12 +71,12 @@ public class RecordingPurgeController {
 
         long size = rec.getFileSize() == null ? 0L : rec.getFileSize();
         boolean deleted = false;
-        String diskPath = resolveDiskPath(rec.getFilePath());
-        if (diskPath != null) {
-            Path p = Paths.get(diskPath);
+        // 路径还原统一走 RecordingFileService：与"下载"接口共用同一套 www 解析与越界检查
+        Path target = recordingFileService.resolveDiskPath(rec.getFilePath());
+        if (target != null) {
             try {
-                if (Files.exists(p)) {
-                    Files.delete(p);
+                if (Files.exists(target)) {
+                    Files.delete(target);
                     deleted = true;
                 }
             } catch (IOException e) {
@@ -98,7 +96,7 @@ public class RecordingPurgeController {
         detail.put("fileName", rec.getFileName());
         detail.put("fileSize", size);
         detail.put("diskDeleted", deleted);
-        detail.put("diskPath", diskPath);
+        detail.put("diskPath", target == null ? null : target.toString());
 
         String msg = deleted
                 ? "清理录像文件，释放 " + String.format("%.1f", size / 1048576.0) + " MB（台账记录保留）"
@@ -115,57 +113,5 @@ public class RecordingPurgeController {
         result.put("diskDeleted", deleted);
         result.put("message", msg);
         return Result.ok(result);
-    }
-
-    /**
-     * 解析 ZLM 的 www 根目录。
-     *
-     * <p>配置里写的是相对路径，而相对谁取决于进程启动时的工作目录
-     * （项目根 / backend 都可能）。这里按候选顺序取第一个真实存在的目录，
-     * 避免"工作目录不同导致清理录像失败"这种环境差异问题。
-     */
-    private Path resolveWwwDir() {
-        String[] candidates = {
-                zlmProperties.getWwwDir(),      // 配置优先，如 ./tools/zlm/www
-                "../tools/zlm/www",             // 工作目录为 backend 时
-                "./tools/zlm/www"               // 工作目录为项目根时
-        };
-        for (String c : candidates) {
-            if (c == null || c.isBlank()) {
-                continue;
-            }
-            Path p = Paths.get(c).toAbsolutePath().normalize();
-            if (Files.isDirectory(p)) {
-                return p;
-            }
-        }
-        return Paths.get(zlmProperties.getWwwDir()).toAbsolutePath().normalize();
-    }
-
-    /**
-     * 把台账里的 file_path 映射为磁盘路径。
-     *
-     * <p>file_path 可能是 http URL（正常情况），也可能是本地绝对路径（兜底）。
-     * URL 情况下用 ZLM 的 www 根目录还原，并做目录越界检查，防止路径穿越。
-     */
-    private String resolveDiskPath(String filePath) {
-        if (filePath == null || filePath.isBlank()) {
-            return null;
-        }
-        if (!filePath.startsWith("http://") && !filePath.startsWith("https://")) {
-            return filePath;
-        }
-        String relative;
-        try {
-            relative = URI.create(filePath).getPath();
-        } catch (RuntimeException e) {
-            return null;
-        }
-        Path www = resolveWwwDir();
-        Path target = www.resolve(relative.replaceFirst("^/+", "")).normalize();
-        if (!target.startsWith(www)) {
-            throw new BizException(ErrorCode.PARAM_ERROR, "文件路径不合法，已阻止这次操作");
-        }
-        return target.toString();
     }
 }

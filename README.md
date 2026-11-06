@@ -46,8 +46,9 @@
 │   │   ├── domain/                  实体
 │   │   └── integration/zlm/         ZLMediaKit 客户端与配置
 │   ├── src/main/resources/application.yml
-│   ├── sql/01_schema.sql            建库建表 + 演示数据（9 张表）
-│   ├── sql/02_add_api_client.sql    增量迁移
+│   ├── sql/00_init_all.sql          【一键建库】9 张表 + 种子数据（新环境只跑这个）
+│   ├── sql/01~09_*.sql              演进历史（已归档，新环境勿执行）
+│   ├── sql/README.md                三种执行方式与坑点
 │   └── target/video-data-gateway.jar  构建产物
 ├── frontend/                        前端（Vue3 + Element Plus，无构建，与后端完全分离）
 │   ├── index.html

@@ -80,7 +80,13 @@ REM 下载前端本地依赖到 frontend\vendor\（Vue / Element Plus / flv.js /
 node scripts\fetch-web-libs.mjs
 ```
 
-建表：用 `backend\sql\01_schema.sql` 初始化数据库（增量脚本 `02`~`09` 按序执行）。
+建表：**只需要执行一个文件** `backend\sql\00_init_all.sql`（建库 + 9 张表 + 种子数据 + 自检，可重复执行）：
+
+```bat
+mysql -h127.0.0.1 -P3307 -uroot -p < backend\sql\00_init_all.sql
+```
+
+`backend\sql\01`~`09` 是演进历史，新环境不用逐个执行。详见 `backend\sql\README.md`。
 数据库默认连 `127.0.0.1:3307/video_gateway`，账号口令可用环境变量覆盖：
 `VGW_DB_USER` / `VGW_DB_PASSWORD`；ZLM 的 secret 用 `VGW_ZLM_SECRET` 覆盖。
 
